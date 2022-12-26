@@ -1,8 +1,10 @@
-|Command                  | Description                                        
- ------------------------------------------------------------------------------
-| w                       | Show who is logged on and what they are doing.     
-| sar                     | Collect, report, or save system activity information.
-|			  | For example, 'sar -u 5' collects info in each 5 sec.
-| uptime                  | Tell how long the system has been running.
-| cat /proc/loadavg       | 'uptime', 'w' etc are probably taking loadavg from this file.
- ------------------------------------------------------------------------------
+|Command                                                                  | Description                                        
+ ------------------------------------------------------------------------------------------------------------------------------------------
+| w									  									  | Show who is logged on and what they are doing.     
+| sar									  								  | Collect, report, or save system activity information.
+|									  									  | For example, 'sar -u 5' collects info in each 5 sec.
+| uptime								  								  | Tell how long the system has been running.
+| cat /proc/loadavg							  							  | 'uptime', 'w' etc are probably taking loadavg from this file.
+| ps -eo s,user | grep ^[RD] | sort | uniq -c | sort -nbr | head -20      | To see the processes that are in ready state.
+| lshw -C memory                      									  | Command to show the memory information of device.
+ ------------------------------------------------------------------------------------------------------------------------------------------
