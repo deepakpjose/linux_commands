@@ -25,15 +25,6 @@ profile.c
  */
 extern int parse_cpu_mask_file(const char *fcpu, bool **mask, int *mask_sz);
 
-static long perf_event_open(struct perf_event_attr *hw_event, pid_t pid, int cpu, int group_fd,
-                            unsigned long flags)
-{
-        int ret;
-
-        ret = syscall(__NR_perf_event_open, hw_event, pid, cpu, group_fd, flags);
-        return ret;
-}
-
 static struct blaze_symbolizer *symbolizer;
 
 static void print_frame(const char *name, uintptr_t input_addr, uintptr_t addr, uint64_t offset, const blaze_symbolize_code_info* code_info)
@@ -162,23 +153,16 @@ int main(int argc, char *const argv[])
                 }
         }
 
-        err = parse_cpu_mask_file(online_cpus_file, &online_mask, &num_online_cpus);
-        if (err) {
-                fprintf(stderr, "Fail to get online CPU numbers: %d\n", err);
-                goto cleanup;
-        }
-
-        num_cpus = libbpf_num_possible_cpus();
-        if (num_cpus <= 0) {
-                fprintf(stderr, "Fail to get the number of processors\n");
-                err = -1;
-                goto cleanup;
-        }
-
         skel = profile_bpf__open_and_load();
         if (!skel) {
                 fprintf(stderr, "Fail to open and load BPF skeleton\n");
                 err = -1;
+                goto cleanup;
+        }
+
+        err = profile_bpf__attach(skel);
+        if (err) {
+                fprintf(stderr, "Failed to attach BPF skeleton err: %d\n", err);
                 goto cleanup;
         }
 
@@ -196,41 +180,6 @@ int main(int argc, char *const argv[])
                 goto cleanup;
         }
 
-        pefds = malloc(num_cpus * sizeof(int));
-        for (i = 0; i < num_cpus; i++) {
-                pefds[i] = -1;
-        }
-
-        links = calloc(num_cpus, sizeof(struct bpf_link *));
-
-        memset(&attr, 0, sizeof(attr));
-        attr.type = PERF_TYPE_HARDWARE;
-        attr.size = sizeof(attr);
-        attr.config = PERF_COUNT_HW_CPU_CYCLES;
-        attr.sample_freq = freq;
-        attr.freq = 1;
-
-        for (cpu = 0; cpu < num_cpus; cpu++) {
-                /* skip offline/not present CPUs */
-                if (cpu >= num_online_cpus || !online_mask[cpu])
-                        continue;
-
-                /* Set up performance monitoring on a CPU/Core */
-                pefd = perf_event_open(&attr, pid, cpu, -1, PERF_FLAG_FD_CLOEXEC);
-                if (pefd < 0) {
-                        fprintf(stderr, "Fail to set up performance monitor on a CPU/Core\n");
-                        err = -1;
-                        goto cleanup;
-                }
-                pefds[cpu] = pefd;
-
-                /* Attach a BPF program on a CPU */
-                links[cpu] = bpf_program__attach_perf_event(skel->progs.profile, pefd);
-                if (!links[cpu]) {
-                        err = -1;
-                        goto cleanup;
-                }
-        }
 
         /* Wait and receive stack traces */
         while (ring_buffer__poll(ring_buf, -1) >= 0) {
